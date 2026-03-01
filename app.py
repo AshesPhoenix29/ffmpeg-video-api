@@ -48,19 +48,4 @@ def health():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-```
 
-Click **"Commit new file"** (green button bottom)
-
----
-
-**Step 3 — Create second file**
-
-Click **"Add file" → "Create new file"**
-
-Name it: `requirements.txt`
-
-Paste:
-```
-flask
-requests
