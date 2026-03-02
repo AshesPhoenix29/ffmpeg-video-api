@@ -1,9 +1,8 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, request as freq
 import subprocess
 import requests
 import os
 import uuid
-import base64
 
 app = Flask(__name__)
 
@@ -15,33 +14,29 @@ def build_video():
         audio_path = f'/tmp/audio_{job_id}.mp3'
         output_path = f'/tmp/output_{job_id}.mp4'
 
-        # Get raw bytes from request
+        # Get URLs from form data or JSON
         data = request.json
         video_url = data['videoUrl']
-        audio_b64 = data['audioBase64']
+        audio_url = data['audioUrl']
 
         # Download video
-        vr = requests.get(video_url, timeout=60)
+        vr = requests.get(video_url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
         with open(bg_path, 'wb') as f:
             f.write(vr.content)
 
-        # Decode audio - strip any whitespace/newlines first
-        audio_b64_clean = audio_b64.strip().replace('\n','').replace('\r','').replace(' ','')
-        # Add padding if needed
-        padding = 4 - len(audio_b64_clean) % 4
-        if padding != 4:
-            audio_b64_clean += '=' * padding
-        
-        audio_bytes = base64.b64decode(audio_b64_clean)
+        # Download audio
+        ar = requests.get(audio_url, timeout=60)
         with open(audio_path, 'wb') as f:
-            f.write(audio_bytes)
+            f.write(ar.content)
 
-        # Verify audio file size
         audio_size = os.path.getsize(audio_path)
-        if audio_size < 100:
-            return jsonify({"error": f"Audio file too small: {audio_size} bytes"}), 500
+        video_size = os.path.getsize(bg_path)
 
-        # Build video
+        if audio_size < 100:
+            return jsonify({"error": f"Audio too small: {audio_size}"}), 500
+        if video_size < 100:
+            return jsonify({"error": f"Video too small: {video_size}"}), 500
+
         cmd = [
             'ffmpeg', '-y',
             '-i', bg_path,
@@ -55,7 +50,7 @@ def build_video():
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
 
         if result.returncode != 0:
-            return jsonify({"error": result.stderr[-500:]}), 500
+            return jsonify({"error": result.stderr[-1000:]}), 500
 
         return send_file(output_path, mimetype='video/mp4')
 
