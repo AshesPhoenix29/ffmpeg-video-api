@@ -38,7 +38,7 @@ def build_video():
 
         # Verify audio file size
         audio_size = os.path.getsize(audio_path)
-        if audio_size < 1000:
+        if audio_size < 100:
             return jsonify({"error": f"Audio file too small: {audio_size} bytes"}), 500
 
         # Build video
