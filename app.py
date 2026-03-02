@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, request as freq
+from flask import Flask, request, jsonify, send_file
 import subprocess
 import requests
 import os
@@ -14,20 +14,19 @@ def build_video():
         audio_path = f'/tmp/audio_{job_id}.mp3'
         output_path = f'/tmp/output_{job_id}.mp4'
 
-        # Get URLs from form data or JSON
-        data = request.json
-        video_url = data['videoUrl']
-        audio_url = data['audioUrl']
+        video_url = request.form.get('videoUrl')
+        audio_file = request.files.get('audio')
+
+        if not video_url or not audio_file:
+            return jsonify({"error": "Missing videoUrl or audio file"}), 400
 
         # Download video
         vr = requests.get(video_url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
         with open(bg_path, 'wb') as f:
             f.write(vr.content)
 
-        # Download audio
-        ar = requests.get(audio_url, timeout=60)
-        with open(audio_path, 'wb') as f:
-            f.write(ar.content)
+        # Save audio
+        audio_file.save(audio_path)
 
         audio_size = os.path.getsize(audio_path)
         video_size = os.path.getsize(bg_path)
