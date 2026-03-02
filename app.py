@@ -10,29 +10,37 @@ app = Flask(__name__)
 @app.route('/build-video', methods=['POST'])
 def build_video():
     try:
-        data = request.json
-        video_url = data['videoUrl']
         job_id = str(uuid.uuid4())[:8]
-        
         bg_path = f'/tmp/bg_{job_id}.mp4'
         audio_path = f'/tmp/audio_{job_id}.mp3'
         output_path = f'/tmp/output_{job_id}.mp4'
-        
-        # Download background video
-        r = requests.get(video_url, timeout=60)
+
+        # Get raw bytes from request
+        data = request.json
+        video_url = data['videoUrl']
+        audio_b64 = data['audioBase64']
+
+        # Download video
+        vr = requests.get(video_url, timeout=60)
         with open(bg_path, 'wb') as f:
-            f.write(r.content)
+            f.write(vr.content)
+
+        # Decode audio - strip any whitespace/newlines first
+        audio_b64_clean = audio_b64.strip().replace('\n','').replace('\r','').replace(' ','')
+        # Add padding if needed
+        padding = 4 - len(audio_b64_clean) % 4
+        if padding != 4:
+            audio_b64_clean += '=' * padding
         
-        # Handle audio - either base64 or URL
-        if 'audioBase64' in data:
-            audio_bytes = base64.b64decode(data['audioBase64'])
-            with open(audio_path, 'wb') as f:
-                f.write(audio_bytes)
-        elif 'audioUrl' in data:
-            r2 = requests.get(data['audioUrl'], timeout=60)
-            with open(audio_path, 'wb') as f:
-                f.write(r2.content)
-        
+        audio_bytes = base64.b64decode(audio_b64_clean)
+        with open(audio_path, 'wb') as f:
+            f.write(audio_bytes)
+
+        # Verify audio file size
+        audio_size = os.path.getsize(audio_path)
+        if audio_size < 1000:
+            return jsonify({"error": f"Audio file too small: {audio_size} bytes"}), 500
+
         # Build video
         cmd = [
             'ffmpeg', '-y',
@@ -45,12 +53,12 @@ def build_video():
             output_path
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        
+
         if result.returncode != 0:
-            return jsonify({"error": result.stderr}), 500
-            
+            return jsonify({"error": result.stderr[-500:]}), 500
+
         return send_file(output_path, mimetype='video/mp4')
-    
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
