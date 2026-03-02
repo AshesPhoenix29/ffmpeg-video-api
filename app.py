@@ -3,6 +3,7 @@ import subprocess
 import requests
 import os
 import uuid
+import base64
 
 app = Flask(__name__)
 
@@ -10,7 +11,7 @@ app = Flask(__name__)
 def build_video():
     data = request.json
     video_url = data['videoUrl']
-    audio_url = data['audioUrl']
+    audio_base64 = data['audioBase64']
     job_id = str(uuid.uuid4())[:8]
     
     bg_path = f'/tmp/bg_{job_id}.mp4'
@@ -18,14 +19,14 @@ def build_video():
     output_path = f'/tmp/output_{job_id}.mp4'
     
     # Download background video
-    r = requests.get(video_url, timeout=30)
+    r = requests.get(video_url, timeout=60)
     with open(bg_path, 'wb') as f:
         f.write(r.content)
     
-    # Download audio
-    r2 = requests.get(audio_url, timeout=30)
+    # Decode audio from base64
+    audio_data = base64.b64decode(audio_base64)
     with open(audio_path, 'wb') as f:
-        f.write(r2.content)
+        f.write(audio_data)
     
     # Build video with ffmpeg
     cmd = [
@@ -38,7 +39,7 @@ def build_video():
         '-shortest',
         output_path
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, timeout=120)
     
     return send_file(output_path, mimetype='video/mp4')
 
@@ -47,5 +48,5 @@ def health():
     return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
